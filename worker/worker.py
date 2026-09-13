@@ -58,6 +58,11 @@ def execute_task(task, conn):
         task.retry_count += 1
         task.error = str(error)
 
+        print(
+            f"[Worker] Task {task.id} failed: "
+            f"{type(error).__name__}: {error}"
+        )
+
         if task.retry_count <= task.max_retries:
             task.status = "retrying"
 
@@ -139,8 +144,6 @@ class Worker:
         return row is not None and row[0] == "cancelled"
 
     def run(self):
-        # DB connection is created inside the worker thread.
-        # This avoids sharing a psycopg connection between threads.
         with psycopg.connect(DATABASE_URL) as conn:
             while True:
                 task = self.task_queue.get_task()

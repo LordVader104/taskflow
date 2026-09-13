@@ -10,6 +10,9 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Query
 
+import os
+import psutil
+
 
 app = FastAPI(
     title="TaskFlow",
@@ -22,7 +25,38 @@ task_queue = TaskQueue()
 
 workers = []
 
-for i in range(3):
+
+def calculate_worker_count():
+    cpu_cores = os.cpu_count() or 1
+
+    memory = psutil.virtual_memory()
+    total_memory_gb = memory.total / (1024 ** 3)
+
+    # for every worker approx 2gb ram
+    memory_based_workers = max(1, int(total_memory_gb / 2))
+
+    # dont eat all the cpu leave it some for system
+    cpu_based_workers = max(1, cpu_cores - 2)
+
+    worker_count = min(
+        cpu_based_workers,
+        memory_based_workers,
+        12
+    )
+
+    return worker_count
+
+
+worker_count = calculate_worker_count()
+
+print(
+    f"[TaskFlow] Starting {worker_count} workers "
+    f"(CPU cores: {os.cpu_count()}, "
+    f"RAM: {psutil.virtual_memory().total / (1024 ** 3):.1f} GB)"
+)
+
+
+for i in range(worker_count):
     worker = Worker(
         worker_id=i + 1,
         task_queue=task_queue
@@ -30,7 +64,6 @@ for i in range(3):
 
     worker.start()
     workers.append(worker)
-
 
 class TaskRequest(BaseModel):
     task_type: str = Field(min_length=1)
